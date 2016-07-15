@@ -1,0 +1,123 @@
+#!/bin/sh
+# -*- sh -*-
+
+: << =cut
+
+=head1 NAME
+
+pf_tables - Plugin to monitor number of entries in pf tables
+
+=head1 APPLICABLE SYSTEMS
+
+BSD systems with pf
+
+=head1 CONFIGURATION
+
+Needs to be run as root to manipulate pf
+
+Add the following to your @@CONFDIR@@/munin-node:
+
+  [pf_tables_simple_*]
+  user root
+
+=head1 AUTHOR
+
+Olivier Mehani
+
+=head1 LICENSE
+
+BSD
+
+=head1 MAGIC MARKERS
+
+ #%# family=auto
+ #%# capabilities=autoconf suggest
+
+=cut
+
+autoconf() {
+	which pfctl >/dev/null && test `pfctl -s Tables | wc -l` -gt 0 && echo yes || \
+		echo "no (No pfctl or no tables)"
+}
+
+suggest () {
+	echo all
+	_list_tables
+}
+
+_list_tables () {
+	pfctl -s Tables
+}
+
+_table_config () {
+	cat << EOF
+$1.label $1
+$1.draw LINE
+EOF
+}
+
+config () {
+	case $1 in
+		"all")
+			cat << EOF
+graph_title pf: entry count per table
+graph_args -l 0
+graph_category network
+graph_scale no
+graph_vlabel entries
+EOF
+			for t in `_list_tables`; do
+				_table_config $t
+			done
+			;;
+		"*")
+			cat << EOF
+graph_title pf: entry count for table $1
+graph_args -l 0
+graph_category network
+graph_scale no
+graph_vlabel entries
+EOF
+			_table_config $1
+			;;
+	esac
+}
+
+_get_count () {
+	count=`pfctl -T show -t $1 | wc -l`
+	if [ -z "$count" ]; then
+		echo "$0: unknown table '$1'" >&2
+		exit 1
+	fi
+	echo "$1.value $count"
+}
+
+fetch () {
+	case $1 in
+		"all")
+			for t in `_list_tables`; do
+				_get_count $t
+			done
+			;;
+		"*")
+			_get_count $1
+			;;
+	esac
+}
+
+mode=`echo $0 | sed 's/.*_//'`
+
+case $1 in
+	"autoconf")
+		autoconf
+		;;
+	"suggest")
+		suggest
+		;;
+	"config")
+		config $mode
+		;;
+	*)
+		fetch $mode
+		;;
+esac
