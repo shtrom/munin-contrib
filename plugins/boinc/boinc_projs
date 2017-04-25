@@ -150,7 +150,7 @@ for my $rslt_info (@rsltInfos) {
   my $acttask = $acttask[0];
   $acttask =~ s/^\s+active_task_state: //;
   if (( ($schedstat eq "2") && ($state eq "2") && ($acttask eq "1") ) ||
-      ( ($schedstate eq "scheduled") && ($state eq "downloaded") && ($acttask eq "EXECUTING") )) {
+      ( ($schedstat eq "scheduled") && ($state eq "downloaded") && ($acttask eq "EXECUTING") )) {
     # This is running task
     $projects{$url}->{prj_running} += 1;
   }
@@ -228,7 +228,7 @@ if ( (defined $ARGV[0]) && ($ARGV[0] eq "config") ) {
   }
 
   print "graph_title Running BOINC processes\n";
-  print "graph_category BOINC\n";
+  print "graph_category htc\n";
   print "graph_args --base 1000 -l 0\n";
   print "graph_vlabel BOINC applications\n";
   print "graph_total Total\n";
