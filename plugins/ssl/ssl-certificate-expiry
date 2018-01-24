@@ -107,5 +107,7 @@ get_expire()
 }
 
 for service in $services; do
-    get_expire "$service"
+    get_expire "$service" &
 done
+
+wait
