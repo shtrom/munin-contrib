@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -eu
 # -*- sh -*-
 
 : << =cut
@@ -18,7 +18,7 @@ nextcloud_serverinfo - Plugin to monitor Nextcloud's serverinfo statut
 
 Olivier Mehani
 
-Copyright (C) 2018 Olivier Mehani <shtrom+munin@ssji.net>
+Copyright (C) 2018--2019 Olivier Mehani <shtrom+munin@ssji.net>
 
 =head1 LICENSE
 
@@ -29,15 +29,17 @@ GPLv3+
 # shellcheck disable=SC1090
 . "${MUNIN_LIBDIR}/plugins/plugin.sh"
 
-if [ "${MUNIN_DEBUG}" = 1 ]; then
+CURL_ARGS='-s'
+if [ "${MUNIN_DEBUG:-0}" = 1 ]; then
+    CURL_ARGS='-v'
     set -x
 fi
 
-if ! which curl >/dev/null; then
+if ! command -v curl >/dev/null; then
 	echo "curl not found" >&2
 	exit 1
 fi
-if ! which xpath >/dev/null; then
+if ! command -v xpath >/dev/null; then
 	echo "xpath (Perl XML::LibXML) not found" >&2
 	exit 1
 fi
@@ -100,13 +102,29 @@ main_METRICS="
 /ocs/data/server/database/size
 "
 
+fetch() {
+	# shellcheck disable=SC2154
+	curl -u "${serverinfo_login}:${serverinfo_password}" -f ${CURL_ARGS} "$@" \
+		|| { echo "error fetching ${*} for user ${serverinfo_login}" >&2; false; }
+}
+
+
+xpath_extract() {
+	# shellcheck disable=SC2039
+	local xpath="$1"
+	# shellcheck disable=SC2039
+	local node="$(xpath -q -n -e "${xpath}")" \
+		|| { echo "error extracting ${xpath}" >&2; false; }
+	echo "${node}" | sed 's/<\([^>]*\)>\([^<]*\)<[^>]*>/\2/;s^N/A^U^'
+}
+
 short_metric() {
 	metric="${1}"
 	echo "${metric}" | sed 's^.*/^^'
 }
 
 metric_config() {
-	for metric in $*; do
+	for metric in "${@}"; do
 		fieldname="$(clean_fieldname "$(short_metric "${metric}")")"
 		label="$(echo "${metric}" | sed 's^/ocs/data^^')"
 		echo "${fieldname}.label ${label}"
@@ -115,39 +133,38 @@ metric_config() {
 
 # uses global: $*_METRICS
 metrics_for_category() {
-	category=$1
+	category=${1}
 	case $category in
 		"activeusers")
-			echo ${activeusers_METRICS}
+			echo "${activeusers_METRICS}"
 			;;
 		"database")
-			echo ${database_METRICS}
+			echo "${database_METRICS}"
 			;;
 		"main")
-			echo ${main_METRICS}
+			echo "${main_METRICS}"
 			;;
 		"php")
-			echo ${php_METRICS}
+			echo "${php_METRICS}"
 			;;
 		"shares")
-			echo ${shares_METRICS}
+			echo "${shares_METRICS}"
 			;;
 		"storage")
-			echo ${storage_METRICS}
+			echo "${storage_METRICS}"
 			;;
 		"system")
-			echo ${system_METRICS}
+			echo "${system_METRICS}"
 			;;
 	esac
 }
 
 # uses global: $DATA
 metric_report() {
-	for metric in $*; do
+	for metric in "${@}"; do
 		fieldname="$(clean_fieldname "$(short_metric "${metric}")")"
 		value=$(echo "${DATA}" | \
-			xpath -q -n -e "${metric}" | \
-			sed 's/<\([^>]*\)>\([^<]*\)<[^>]*>/\2/')
+			xpath_extract "${metric}")
 
 		if echo "${value}" | grep -q '^[0-9]\+\(\.[0-9]*\)\?$'; then
 			printf "%s.value %s\\n" "${fieldname}" "${value}"
@@ -157,8 +174,9 @@ metric_report() {
 	done
 }
 
-case $1 in
+case ${1:-} in
     config)
+	# shellcheck disable=SC2154
 	base_url=$(echo "${serverinfo_url}" | sed 's^/ocs/.*^^')
 
 	echo "multigraph nextcloud_serverinfo"
@@ -168,25 +186,27 @@ case $1 in
 
 	metric_config $(metrics_for_category main)
 
-	for category in $CATEGORIES; do
+	for category in ${CATEGORIES}; do
 		echo
 		echo "multigraph nextcloud_serverinfo.$category"
 		echo "graph_title Nextcloud ${category} for ${base_url}"
 		echo 'graph_category nextcloud'
-		metric_config $(metrics_for_category ${category})
+		metric_config $(metrics_for_category "${category}")
 	done
 
 	exit 0
 	;;
 esac
 
-DATA="$(echo "user=${serverinfo_login}:${serverinfo_password}" | curl -s -K - "${serverinfo_url}")"
+DATA="$(fetch "${serverinfo_url}")"
 
 echo "multigraph nextcloud_serverinfo"
+# shellcheck disable=SC2046
 metric_report $(metrics_for_category main)
 
-for category in $CATEGORIES; do
+for category in ${CATEGORIES}; do
 	echo
 	echo "multigraph nextcloud_serverinfo.$category"
-	metric_report $(metrics_for_category ${category})
+	# shellcheck disable=SC2046
+	metric_report $(metrics_for_category "${category}")
 done
