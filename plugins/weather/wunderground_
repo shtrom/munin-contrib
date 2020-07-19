@@ -15,8 +15,14 @@ weekly/monstly/yearly graphs, particularly in case of missing values.
 However, to work around the limitation that DERIVE only supports integers, the
 decimal point is also shifted two places right (*100) from the reported value,
 so even small values can be represented. The value is then rescaled to cancel
-this shift (/100), and expressed per hour rather than second (*3600), as it is
-the usual unit for precipitation.
+this shift (/100).
+
+The max for the avgRate field is set to 50000, which is 500mm/hour,
+with the rescaling discussed in the previous paragraph. The 500mm value comes
+from [0], where it is an upper bound to the actual worldwide record observation
+of 401mm in an hour as seen on 1975-07-03 in Shangdi, Nei Monggol, China .
+
+[0] http://www.bom.gov.au/water/designRainfalls/rainfallEvents/worldRecRainfall.shtml
 
 =head1 CONFIGURATION
 
@@ -83,6 +89,7 @@ UNITS_ARG='&units=m'
 DISTANCE_UNIT='m'
 PRESSURE_UNIT='hPa'
 PRECIPITATION_UNIT='mm'
+PRECIPITATION_MAX='50000' # e10^-5m
 SPEED_UNIT='km/h'
 TEMP_UNIT='°C'
 # https://en.wikipedia.org/wiki/Wind_chill#/media/File:Windchill_effect_en.svg
@@ -98,6 +105,7 @@ if [ "${UNITS}" = "imperial" ]; then
 	DISTANCE_UNIT='ft'
 	PRESSURE_UNIT='in'
 	PRECIPITATION_UNIT='in'
+	PRECIPITATION_MAX='2000' # e10^-2 in
 	SPEED_UNIT='mph'
 	TEMP_UNIT='°F'
 	WIND_CHILL_CAUTION=-31:
@@ -128,7 +136,7 @@ config() {
 	local STATION_INFO="in \(.neighborhood), \(.country) reported by station \(.stationID) (\(.lon), \(.lat), \(.${UNITS}.elev) m) at \(.obsTimeLocal) (\(.obsTimeUtc))"
 	fetch "${API_URL}" | jq -r ".observations[0]
 				| @text \"
-multigraph wunderground_${STATION_ID}
+multigraph wunderground_dev_${STATION_ID}
 graph_title Weather in \(.neighborhood)
 graph_info Weather ${STATION_INFO}
 graph_category weather
@@ -140,7 +148,7 @@ uv.label UV index
 precipRate.draw AREA
 precipRate.label Precipitation rate [${PRECIPITATION_UNIT} per hour]
 
-multigraph wunderground_${STATION_ID}.air_humidity
+multigraph wunderground_dev_${STATION_ID}.air_humidity
 graph_title Humidity in \(.neighborhood)
 graph_info Humidity ${STATION_INFO}
 graph_category weather
@@ -150,7 +158,7 @@ humidity.label Humidity
 humidity.min 0
 humidity.max 100
 
-multigraph wunderground_${STATION_ID}.location
+multigraph wunderground_dev_${STATION_ID}.location
 graph_title Location of \(.stationID)
 graph_info Track geographic coordinates of station \(.stationID); last: \(.lon), \(.lat), \(.${UNITS}.elev) ${DISTANCE_UNIT} at \(.obsTimeLocal) (\(.obsTimeUtc))
 graph_category weather
@@ -160,20 +168,22 @@ lon.label Longitude [°]
 lat.label Latitude [°]
 elev.label Elevation [${DISTANCE_UNIT}]
 
-multigraph wunderground_${STATION_ID}.precipitation
+multigraph wunderground_dev_${STATION_ID}.precipitation
 graph_title Precipitation in \(.neighborhood)
 graph_info Precipitation ${STATION_INFO}
 graph_category weather
 graph_args -l 0 --base 1000
-graph_vlabel Precipitation [${PRECIPITATION_UNIT} per hour]
+graph_vlabel Precipitation [${PRECIPITATION_UNIT} per \${graph_period}]
+graph_period hour
 precipRate.label Precipitation rate
 avgRate.label Average precipitation rate
 avgRate.type DERIVE
 avgRate.draw AREA
 avgRate.min 0
-avgRate.cdef avgRate,36,*
+avgRate.max ${PRECIPITATION_MAX}
+avgRate.cdef avgRate,100,/
 
-multigraph wunderground_${STATION_ID}.air_pressure
+multigraph wunderground_dev_${STATION_ID}.air_pressure
 graph_title Pressure in \(.neighborhood)
 graph_info Pressure ${STATION_INFO}
 graph_category weather
@@ -181,7 +191,7 @@ graph_scale no
 graph_vlabel Pressure [${PRESSURE_UNIT}]
 pressure.label Pressure
 
-multigraph wunderground_${STATION_ID}.solar_radiation
+multigraph wunderground_dev_${STATION_ID}.solar_radiation
 graph_title Solar radiation in \(.neighborhood)
 graph_info Solar radiation ${STATION_INFO}
 graph_category weather
@@ -189,7 +199,7 @@ graph_args -l 0 --base 1000
 graph_vlabel Solar radiation [W/m^2]
 solarRadiation.label Solar radiation
 
-multigraph wunderground_${STATION_ID}.temperature
+multigraph wunderground_dev_${STATION_ID}.temperature
 temp.label Temperature
 graph_title Temperature in \(.neighborhood)
 graph_info Temperature ${STATION_INFO}
@@ -234,7 +244,7 @@ heatIndexEDanger.info Heat stroke is imminent.
 heatIndexEDanger.colour ff0000
 heatIndexEDanger.line ${HEAT_INDEX_EXTREME_DANGER}
 
-multigraph wunderground_${STATION_ID}.uv_index
+multigraph wunderground_dev_${STATION_ID}.uv_index
 graph_title UV Index in \(.neighborhood)
 graph_info UV index ${STATION_INFO}
 graph_category weather
@@ -261,7 +271,7 @@ extreme.info Try to avoid Sun exposure between 10 a.m. and 4 p.m. If outdoors, s
 extreme.colour b567a4
 extreme.line 11
 
-multigraph wunderground_${STATION_ID}.wind
+multigraph wunderground_dev_${STATION_ID}.wind
 graph_title Wind Speed in \(.neighborhood)
 graph_info Wind speed and gusts ${STATION_INFO}
 graph_category weather
@@ -270,7 +280,7 @@ graph_vlabel Wind speed [${SPEED_UNIT}]
 windSpeed.label Wind speed
 windGust.label Wind gusts
 
-multigraph wunderground_${STATION_ID}.wind_direction
+multigraph wunderground_dev_${STATION_ID}.wind_direction
 graph_title Wind Direction in \(.neighborhood)
 graph_info Wind direction ${STATION_INFO}
 graph_category weather
@@ -298,46 +308,46 @@ west.line 270
 get_data() {
 	fetch "${API_URL}" | jq -r ".observations[0]
 				| @text \"
-multigraph wunderground_${STATION_ID}
+multigraph wunderground_dev_${STATION_ID}
 temp.value \(.${UNITS}.temp)
 windChill.value \(.${UNITS}.windChill)
 heatIndex.value \(.${UNITS}.heatIndex)
 uv.value \(.uv)
 precipRate.value \(.${UNITS}.precipRate)
 
-multigraph wunderground_${STATION_ID}.air_humidity
+multigraph wunderground_dev_${STATION_ID}.air_humidity
 humidity.value \(.humidity)
 
-multigraph wunderground_${STATION_ID}.location
+multigraph wunderground_dev_${STATION_ID}.location
 lon.value \(.lon)
 lat.value \(.lat)
 elev.value \(.${UNITS}.elev)
 
-multigraph wunderground_${STATION_ID}.precipitation
+multigraph wunderground_dev_${STATION_ID}.precipitation
 precipRate.value \(.${UNITS}.precipRate)
 avgRate.value \(.${UNITS}.precipTotal*100 | round)
 avgRate.extinfo Immediate precipitation: \(.${UNITS}.precipRate) ${PRECIPITATION_UNIT}/h; Daily total: \(.${UNITS}.precipTotal) ${PRECIPITATION_UNIT}
 
-multigraph wunderground_${STATION_ID}.air_pressure
+multigraph wunderground_dev_${STATION_ID}.air_pressure
 pressure.value \(.${UNITS}.pressure)
 
-multigraph wunderground_${STATION_ID}.solar_radiation
+multigraph wunderground_dev_${STATION_ID}.solar_radiation
 solarRadiation.value \(.solarRadiation)
 
-multigraph wunderground_${STATION_ID}.temperature
+multigraph wunderground_dev_${STATION_ID}.temperature
 temp.value \(.${UNITS}.temp)
 dewpt.value \(.${UNITS}.dewpt)
 windChill.value \(.${UNITS}.windChill)
 heatIndex.value \(.${UNITS}.heatIndex)
 
-multigraph wunderground_${STATION_ID}.uv_index
+multigraph wunderground_dev_${STATION_ID}.uv_index
 uv.value \(.uv)
 
-multigraph wunderground_${STATION_ID}.wind
+multigraph wunderground_dev_${STATION_ID}.wind
 windSpeed.value \(.${UNITS}.windSpeed)
 windGust.value \(.${UNITS}.windGust)
 
-multigraph wunderground_${STATION_ID}.wind_direction
+multigraph wunderground_dev_${STATION_ID}.wind_direction
 winddir.value \(.winddir)
 \"" | sed 's/ null$/U/'
 }
