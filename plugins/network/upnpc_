@@ -75,6 +75,10 @@ get_data() {
 	upnpc -s
 }
 
+get_maxes() {
+	echo "${DATA}" | sed -n "s/^MaxBitRateDown : \([0-9]\+\) bps.*MaxBitRateUp \([0-9]\+\) bps.*/MAX_DOWN_bps=\1\nMAX_UP_bps=\2/p"
+}
+
 get_supported_modes() {
 	DATA=$1
 	echo "${DATA}" | sed -n " \
@@ -105,6 +109,7 @@ config () {
 	case ${1} in
 		"uptime")
 			cat << EOF
+${HOST_NAME}
 graph_title Uplink connection uptime${HOST_TITLE}
 graph_args -l 0
 graph_category network
@@ -113,11 +118,11 @@ graph_vlabel uptime in hours
 uptime.label uptime
 uptime.draw AREA
 uptime.cdef uptime,3600,/
-${HOST_NAME}
 EOF
 			;;
 		"bitrate")
 			cat << EOF
+${HOST_NAME}
 graph_title [DEPRECATED] Uplink bitrate${HOST_TITLE}
 graph_args --base 1000 -l 0
 graph_category network
@@ -126,11 +131,15 @@ down.label bps
 up.label bps
 down.graph no
 up.negative down
-${HOST_NAME}
 EOF
 			;;
 		"traffic")
+			eval $(get_maxes)
+			# Convert maxes to Bps, to match the collected values (that get cdef'd back to bps when plotting)
+			MAX_DOWN_Bps=$((MAX_DOWN_bps/8))
+			MAX_UP_Bps=$((MAX_UP_bps/8))
 			cat << EOF
+${HOST_NAME}
 graph_title Uplink traffic${HOST_TITLE}
 graph_args --base 1000 -l 0
 graph_category network
@@ -148,19 +157,21 @@ EOF
 down.label bps
 down.type DERIVE
 down.min 0
+down.max ${MAX_DOWN_Bps}
 down.cdef down,8,*
 up.label bps
 up.type DERIVE
 up.min 0
+up.max ${MAX_UP_Bps}
 up.cdef up,8,*
 down.graph no
 up.negative down
-${HOST_NAME}
 EOF
 			;;
 		"pkts")
 			# ${graph_period} is not a shell variable
 			cat << EOF
+${HOST_NAME}
 graph_title Uplink packets${HOST_TITLE}
 graph_args --base 1000 -l 0
 graph_category network
@@ -177,7 +188,6 @@ up.type DERIVE
 up.min 0
 down.graph no
 up.negative down
-${HOST_NAME}
 EOF
 			;;
 		"multi")
@@ -208,10 +218,11 @@ fetch () {
 			;;
 		"traffic")
 		echo "${DATA}" | sed -n "
-		s/^Bytes:\s*Sent:\s*\([0-9]\+\).*Recv:\s*\([0-9]\+\).*/up.value \1\ndown.value \2/p"
+			s/^Bytes:\s*Sent:\s*\([0-9]\+\).*Recv:\s*\([0-9]\+\).*/up.value \1\ndown.value \2/p"
 		if [ "${traffic_remove_max:-false}" != 'true' ]; then
-			echo "${DATA}" | sed -n "
-			s/^MaxBitRateDown : \([0-9]\+\) bps.*MaxBitRateUp \([0-9]\+\) bps.*/maxdown.value \1\nmaxup.value \2/p"
+			eval $(get_maxes)
+			echo "maxdown.value $((MAX_DOWN_bps/8))"
+			echo "maxup.value $((MAX_UP_bps/8))"
 		fi
 			;;
 		"pkts")
