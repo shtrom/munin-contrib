@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck shell=dash
 # -*- sh -*-
 
 : << =cut
@@ -23,8 +24,8 @@ However, a few parameters, all optional, can be set if needed
 
 	[whois_domain.tld]
 	env.extract_re s/PATTERN/REPL/
-	env.warning <default: 7 days>
-	env.critical <default: 3 days>
+	env.warning_days <default: 7 days>
+	env.critical_days <default: 3 days>
 
 The C<extract_re> will be used in C<sed> to extract the relevant expiry date. It
 default to C<s/^.*[Ee]xpir.*: //>. Only lines for which a replacement has
@@ -59,8 +60,8 @@ if [ "${MUNIN_DEBUG:-0}" = 1 ]; then
 fi
 
 EXTRACT_RE=${extract_re:-'s/^.*[Ee]xpir.*: //'}
-WARNING=${warning:-7}
-CRITICAL=${critical:-3}
+WARNING=${warning_days:-7}
+CRITICAL=${critical_days:-3}
 CACHE_EXPIRY=60 # minutes
 
 # Args: domain name (optional, for title)
@@ -76,8 +77,11 @@ EOF
 # Args: domain name
 # Separated from graph_config so we can easily extend the plugin to support multiple domains.
 config() {
-	NAME=${1}
+	local NAME=${1}
+	local FIELDNAME
+
 	FIELDNAME="$(clean_fieldname "${NAME}")"
+
 	cat << EOF
 ${FIELDNAME}.label expiry
 ${FIELDNAME}.cdef ${FIELDNAME},86400,/
@@ -88,7 +92,10 @@ EOF
 
 # Args: domain name
 fetch() {
-	NAME=${1}
+	local NAME=${1}
+	local FIELDNAME
+	local CACHEFILE
+
 	FIELDNAME="$(clean_fieldname "${NAME}")"
 
 	CACHEFILE="${MUNIN_PLUGSTATE}/$(basename "${0}").${FIELDNAME}.cache"
@@ -110,8 +117,10 @@ fetch() {
 }
 
 main() {
+	local MODE="${1:-}"
+	local NAME
+
 	NAME="$(echo "${0}" | sed 's/.*_//')"
-	MODE="${1:-}"
 
 	case "${MODE}" in
 		'config')
