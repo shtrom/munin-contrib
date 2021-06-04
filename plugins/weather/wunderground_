@@ -136,18 +136,6 @@ config() {
 	local STATION_INFO="in \(.neighborhood), \(.country) reported by station \(.stationID) (\(.lon), \(.lat), \(.${UNITS}.elev) m) at \(.obsTimeLocal) (\(.obsTimeUtc))"
 	fetch "${API_URL}" | jq -r ".observations[0]
 				| @text \"
-multigraph wunderground_dev_${STATION_ID}
-graph_title Weather in \(.neighborhood)
-graph_info Weather ${STATION_INFO}
-graph_category weather
-graph_vlabel Temperature / UV Index / Precipitation
-temp.label Temperature [${TEMP_UNIT}]
-windChill.label Wind chill [${TEMP_UNIT}]
-heatIndex.label Heat index [$TEMP_UNIT]
-uv.label UV index
-precipRate.draw AREA
-precipRate.label Precipitation rate [${PRECIPITATION_UNIT} per hour]
-
 multigraph wunderground_dev_${STATION_ID}.air_humidity
 graph_title Humidity in \(.neighborhood)
 graph_info Humidity ${STATION_INFO}
@@ -302,19 +290,25 @@ south.line 180
 west.label West
 west.colour COLOUR9
 west.line 270
+
+multigraph wunderground_dev_${STATION_ID}
+graph_title Weather in \(.neighborhood)
+graph_info Weather ${STATION_INFO}
+graph_category weather
+graph_vlabel Temperature / UV Index / Precipitation
+graph_order temp=wunderground_dev_${STATION_ID}.temperature.temp windChill=wunderground_dev_${STATION_ID}.temperature.windChill heatIndex=wunderground_dev_${STATION_ID}.temperature.heatIndex uv=wunderground_dev_${STATION_ID}.uv_index.uv precipRate=wunderground_dev_${STATION_ID}.precipitation.precipRate
+temp.label Temperature [${TEMP_UNIT}]
+windChill.label Wind chill [${TEMP_UNIT}]
+heatIndex.label Heat index [${TEMP_UNIT}]
+uv.label UV index
+precipRate.draw AREA
+precipRate.label Precipitation rate [${PRECIPITATION_UNIT} per hour]
 \""
 }
 
 get_data() {
 	fetch "${API_URL}" | jq -r ".observations[0]
 				| @text \"
-multigraph wunderground_dev_${STATION_ID}
-temp.value \(.${UNITS}.temp)
-windChill.value \(.${UNITS}.windChill)
-heatIndex.value \(.${UNITS}.heatIndex)
-uv.value \(.uv)
-precipRate.value \(.${UNITS}.precipRate)
-
 multigraph wunderground_dev_${STATION_ID}.air_humidity
 humidity.value \(.humidity)
 
