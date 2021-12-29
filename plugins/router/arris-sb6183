@@ -77,8 +77,9 @@ GPLv2
 =cut
 """
 
-import re
+import ctypes
 import os
+import re
 import sys
 from urllib import request
 
@@ -87,6 +88,10 @@ STATUS_URL = "http://192.168.100.1/RgConnect.asp"
 INFO_URL = "http://192.168.100.1/RgSwInfo.asp"
 UPCOUNT = 4
 DOWNCOUNT = 16
+
+# Recast an int32 to uint32
+def fixint(i):
+    return ctypes.c_uint32(int(i)).value
 
 if len(sys.argv) == 2:
     if sys.argv[1] == "config":
@@ -293,10 +298,10 @@ for row in trs:
     data = dict(
         zip(headings, ["".join(x.itertext()).strip() for x in row.findall("td")])
     )
-    uncorr += int(data["Uncorrectables"])
-    correct += int(data["Corrected"])
+    uncorr += fixint(data["Uncorrectables"])
+    correct += fixint(data["Corrected"])
 
-    channel = int(data["Channel"])
+    channel = fixint(data["Channel"])
 
     print("\nmultigraph arris_power.down_{0}".format(channel))
     value = data["Power"].split(" ")[0]
@@ -309,8 +314,8 @@ for row in trs:
     snr[channel - 1] = value
 
     print("multigraph arris_error.down_{0}".format(channel))
-    print("corr.value {0}".format(data["Corrected"]))
-    print("uncr.value {0}".format(data["Uncorrectables"]))
+    print("corr.value {0}".format(fixint(data["Corrected"])))
+    print("uncr.value {0}".format(fixint(data["Uncorrectables"])))
 
 # Fill missing
 for i in range(len(trs), DOWNCOUNT):
@@ -349,7 +354,7 @@ for row in trs:
     data = dict(
         zip(headings, ["".join(x.itertext()).strip() for x in row.findall("td")])
     )
-    channel = int(data["Channel"])
+    channel = fixint(data["Channel"])
     print("multigraph arris_power.up_{0}".format(channel))
     value = data["Power"].split(" ")[0]
     print("power.value {0}".format(value))
