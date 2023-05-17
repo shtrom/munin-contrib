@@ -66,7 +66,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 # shellcheck disable=SC1090
 . "${MUNIN_LIBDIR:-.}/plugins/plugin.sh"
 
-CURL_ARGS='-s'
+CURL_ARGS='-s --connect-timeout 2 --max-time 10'
 if [ "${MUNIN_DEBUG:-0}" = 1 ]; then
     CURL_ARGS='-v'
     set -x
@@ -245,7 +245,7 @@ graph_config() {
 			echo 'graph_category network'
 			echo 'graph_vlabel bytes'
 			echo 'graph_period hour'
-			echo 'graph_order root_usage=usage.usage root_ideal=usage.ideal'
+			echo 'graph_order root_usage=quota.usage root_ideal=quota.ideal'
 
 			echo "root_usage.label Total usage"
 			echo "root_usage.draw AREA"
@@ -253,6 +253,9 @@ graph_config() {
 			echo "root_ideal.label Ideal usage"
 			echo "root_ideal.draw LINE2"
 			echo "root_ideal.colour FFA500"
+
+			echo "root_usage.critical :"
+			echo "root_usage.warning :"
 			;;
 		*)
 			echo "graph_title Uplink usage"
@@ -307,14 +310,14 @@ main() {
 				echo "host_name ${host_name}"
 			fi
 			graph_config ''
-			graph_config usage
+			graph_config quota
 			graph_config daily
 			graph_config current
 			;;
 		*)
 			get_data
 			graph_data ''
-			graph_data usage
+			graph_data quota
 			graph_data daily
 			graph_data current
 			;;
