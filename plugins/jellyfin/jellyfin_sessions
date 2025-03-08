@@ -1,0 +1,101 @@
+#!/usr/bin/env sh
+
+set -e
+
+: << =cut
+
+=head1 NAME
+
+jellyfin_sessions - Monitor active sessions on a jellyfin media system
+
+=head1 APPLICABLE SYSTEMS
+
+Jellyfin media system
+
+=head1 CONFIGURATION
+
+Requires a api key for the plugin and an installed jq, a command-line json 
+processor.
+
+You may specify the URL where to get the statistics.
+
+ url      - URL of jellyfin
+ max_time - Timeout curl - defaults to 3 seconds
+ interval - Interval in seconds to check
+ api_key  - API key from jellyfin
+
+ [jellyfin_sessions]
+ env.url http://127.0.0.1:8096
+ env.max_time 3
+ env.interval 600
+ env.api_key <API_KEY>
+
+=head1 AUTHOR
+
+Copyright (C) 2025 Sebastian L. (https://momou.ch)
+
+=head1 LICENSE
+
+GPLv2
+
+=head1 MAGIC MARKERS
+
+ #%# family=manual
+ #%# capabilities=autoconf
+
+=cut
+
+. "$MUNIN_LIBDIR/plugins/plugin.sh"
+
+url=${url:-"http://127.0.0.1:8096"}
+url_sessions="$url/Sessions"
+max_time=${max_time:-3}
+interval=${interval:-600}
+api_key=${api_key:-}
+
+case $1 in
+	autoconf)
+		if [ -x "$(command -v curl)" ]; then
+			if [ -x "$(command -v jq)" ]; then
+				if [ -z "$api_key" ]; then
+					echo "no (api_key not set)" && exit 1
+				else
+					curl -s -f -m "$max_time" -H "Authorization: MediaBrowser Token=$api_key" -I -X GET "$url_sessions" | grep -iq "Content-Type: application/json" && echo "yes" && exit 0 || echo "no (invalid or empty response from api endpoint ($url_sessions))" && exit 1
+				fi
+			else
+				echo "no (jq not found)" && exit 1
+			fi
+		else
+			echo "no (curl not found)" && exit 0
+		fi
+	;;
+
+    config)
+        echo "graph_title Sessions on Jellyfin"
+        echo "graph_category appserver"
+        echo "graph_vlabel jellyfin sessions"
+        echo "graph_info Currently active sessions on jellyfin"
+        echo "graph_args --base 1000 --lower-limit 0"
+        echo "sessions.label sessions"
+        echo "sessions.info Active sessions on jellyfin"
+        echo "sessions.min 0"
+        echo "plays.label plays"
+        echo "plays.info Active plays on jellyfin"
+        echo "plays.min 0"
+        echo "transcodes.label transcodes"
+        echo "transcodes.info Active transcodes on jellyfin"
+        echo "transcodes.min 0"
+        exit 0
+    ;;
+esac
+
+if active_sessions=$(curl -s -f -m "$max_time" -H "Authorization: MediaBrowser Token=$api_key" -X GET "$url_sessions"?activeWithinSeconds="$interval"); then
+	echo "sessions.value $(echo "$active_sessions" | jq -r '. | length')"
+	echo "plays.value $(echo "$active_sessions" | grep -o '"PlayMethod":' | wc -l)"
+
+	echo "transcodes.value $(echo "$active_sessions" | grep -o '"PlayMethod":"Transcode"' | wc -l)"
+else
+	echo "sessions.value U"
+	echo "plays.value U"
+	echo "transcodes.value U"
+fi
